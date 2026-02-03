@@ -6,12 +6,14 @@ import { Header } from './components/Layout/Header';
 import { Dashboard } from './components/Dashboard';
 import { AIConfig } from './components/AIConfig';
 import { Channels } from './components/Channels';
-import { ServiceManager } from './components/Service';
 import { Settings } from './components/Settings';
 import { Testing } from './components/Testing';
+import { Logs } from './components/Logs';
 import { Setup } from './components/Setup';
+import { appLogger } from './lib/logger';
+import { isTauri } from './lib/tauri';
 
-export type PageType = 'dashboard' | 'ai' | 'channels' | 'service' | 'testing' | 'settings';
+export type PageType = 'dashboard' | 'ai' | 'channels' | 'testing' | 'logs' | 'settings';
 
 interface EnvironmentStatus {
   node_installed: boolean;
@@ -24,21 +26,39 @@ interface EnvironmentStatus {
   os: string;
 }
 
+interface ServiceStatus {
+  running: boolean;
+  pid: number | null;
+  port: number;
+}
+
 function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('dashboard');
   const [isReady, setIsReady] = useState<boolean | null>(null);
   const [showSetup, setShowSetup] = useState(false);
+  const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null);
 
   // 检查环境
   useEffect(() => {
+    appLogger.info('🦞 App 组件已挂载');
+    
+    // 检查是否在 Tauri 环境中
+    if (!isTauri()) {
+      appLogger.warn('不在 Tauri 环境中，跳过环境检查');
+      setIsReady(true);
+      setShowSetup(false);
+      return;
+    }
+    
     const checkEnv = async () => {
+      appLogger.info('开始检查系统环境...');
       try {
         const status = await invoke<EnvironmentStatus>('check_environment');
+        appLogger.info('环境检查完成', status);
         setIsReady(status.ready);
         setShowSetup(!status.ready);
       } catch (e) {
-        console.error('环境检查失败:', e);
-        // 如果检查失败，尝试继续运行（可能是旧版本没有这个命令）
+        appLogger.error('环境检查失败', e);
         setIsReady(true);
         setShowSetup(false);
       }
@@ -46,9 +66,34 @@ function App() {
     checkEnv();
   }, []);
 
+  // 定期获取服务状态
+  useEffect(() => {
+    // 不在 Tauri 环境中则不轮询
+    if (!isTauri()) return;
+    
+    const fetchServiceStatus = async () => {
+      try {
+        const status = await invoke<ServiceStatus>('get_service_status');
+        setServiceStatus(status);
+      } catch {
+        // 静默处理轮询错误
+      }
+    };
+    fetchServiceStatus();
+    const interval = setInterval(fetchServiceStatus, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleSetupComplete = () => {
+    appLogger.info('安装向导完成');
     setIsReady(true);
     setShowSetup(false);
+  };
+
+  // 页面切换处理
+  const handleNavigate = (page: PageType) => {
+    appLogger.action('页面切换', { from: currentPage, to: page });
+    setCurrentPage(page);
   };
 
   const renderPage = () => {
@@ -62,8 +107,8 @@ function App() {
       dashboard: <Dashboard />,
       ai: <AIConfig />,
       channels: <Channels />,
-      service: <ServiceManager />,
       testing: <Testing />,
+      logs: <Logs />,
       settings: <Settings />,
     };
 
@@ -111,7 +156,7 @@ function App() {
       <div className="fixed inset-0 bg-gradient-radial pointer-events-none" />
       
       {/* 侧边栏 */}
-      <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
+      <Sidebar currentPage={currentPage} onNavigate={handleNavigate} serviceStatus={serviceStatus} />
       
       {/* 主内容区 */}
       <div className="flex-1 flex flex-col overflow-hidden">
