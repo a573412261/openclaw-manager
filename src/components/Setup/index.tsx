@@ -213,7 +213,7 @@ export function Setup({ onComplete, embedded = false }: SetupProps) {
                 <button
                   onClick={handleInstallNodejs}
                   disabled={installing !== null}
-                  className="btn-primary text-sm px-4 py-2 flex items-center gap-2"
+                  className="btn-primary !px-4 !py-2 text-sm flex items-center gap-2"
                 >
                   {installing === 'nodejs' ? (
                     <>
@@ -253,8 +253,7 @@ export function Setup({ onComplete, embedded = false }: SetupProps) {
                 <button
                   onClick={handleInstallOpenclaw}
                   disabled={installing !== null || !envStatus.node_version_ok}
-                  className={`btn-primary text-sm px-4 py-2 flex items-center gap-2 ${!envStatus.node_version_ok ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                  className="btn-primary !px-4 !py-2 text-sm flex items-center gap-2"
                   title={!envStatus.node_version_ok ? '请先安装 Node.js' : ''}
                 >
                   {installing === 'openclaw' ? (
